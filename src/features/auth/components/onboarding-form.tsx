@@ -35,7 +35,6 @@ type OnboardingFormProps = {
 };
 
 export const OnboardingForm = ({ onSuccess }: OnboardingFormProps) => {
-  const [termsAgreed, setTermsAgreed] = useState(false);
   const { mutate: onboard, isPending: isOnboarding, error } = useOnboardMutation();
 
   // Create a form schema that includes termsAgreed validation
@@ -60,11 +59,7 @@ export const OnboardingForm = ({ onSuccess }: OnboardingFormProps) => {
   });
 
   const onSubmit = (data: FormData) => {
-    if (!data.termsAgreed) {
-      form.setError('termsAgreed', { message: '이용 약관에 동의해야 합니다.' });
-      return;
-    }
-
+    // The data.termsAgreed is guaranteed to be true due to Zod validation
     // Separate the termsAgreed from the form data for the API call
     const { termsAgreed: _, ...requestPayload } = data;
     
@@ -194,30 +189,36 @@ export const OnboardingForm = ({ onSuccess }: OnboardingFormProps) => {
             />
 
             {/* Terms Agreement */}
-            <div className="space-y-2">
-              <div className="flex items-start space-x-2">
-                <input
-                  type="checkbox"
-                  id="termsAgreed"
-                  checked={termsAgreed}
-                  onChange={(e) => setTermsAgreed(e.target.checked)}
-                  className="mt-1 h-4 w-4 rounded border-input bg-background"
-                />
-                <div>
-                  <Label htmlFor="termsAgreed" className="text-sm font-medium">
-                    이용 약관에 동의합니다
-                  </Label>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    서비스 이용약관, 개인정보처리방침 등에 동의합니다.
-                  </p>
+            <FormField
+              control={form.control}
+              name="termsAgreed"
+              render={({ field }) => (
+                <div className="space-y-2">
+                  <div className="flex items-start space-x-2">
+                    <input
+                      type="checkbox"
+                      id="termsAgreed"
+                      checked={field.value || false}
+                      onChange={field.onChange}
+                      className="mt-1 h-4 w-4 rounded border-input bg-background"
+                    />
+                    <div>
+                      <Label htmlFor="termsAgreed" className="text-sm font-medium">
+                        이용 약관에 동의합니다
+                      </Label>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        서비스 이용약관, 개인정보처리방침 등에 동의합니다.
+                      </p>
+                    </div>
+                  </div>
+                  {form.formState.errors.termsAgreed && (
+                    <p className="text-sm text-destructive">
+                      {form.formState.errors.termsAgreed.message}
+                    </p>
+                  )}
                 </div>
-              </div>
-              {form.formState.errors.termsAgreed && (
-                <p className="text-sm text-destructive">
-                  {form.formState.errors.termsAgreed.message}
-                </p>
               )}
-            </div>
+            />
 
             {/* Error Message */}
             {error && (
