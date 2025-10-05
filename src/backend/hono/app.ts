@@ -15,6 +15,13 @@ export const createHonoApp = () => {
 
   const app = new Hono<AppEnv>();
 
+  // Add logging middleware to see all requests
+  app.use('*', async (c, next) => {
+    const logger = c.get('logger');
+    logger.info(`Hono received ${c.req.method} request to ${c.req.path}`);
+    return next();
+  });
+
   app.use('*', errorBoundary());
   app.use('*', withAppContext());
   app.use('*', withSupabase());

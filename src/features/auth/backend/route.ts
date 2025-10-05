@@ -18,18 +18,29 @@ import {
 } from './error';
 
 export const registerAuthRoutes = (app: Hono<AppEnv>) => {
+  // Log all requests to auth routes
+  app.use('/auth/*', async (c, next) => {
+    const logger = getLogger(c);
+    logger.info(`Received ${c.req.method} request to ${c.req.path}`);
+    return next();
+  });
+
   // Onboard endpoint
   app.post('/auth/onboard', async (c) => {
     const logger = getLogger(c);
+    logger.info('Processing onboard request');
+
     const supabase = getSupabase(c);
 
     // Get request body
     const body = await c.req.json();
+    logger.info('Request body received', { body: Object.keys(body) });
 
     // We need to validate the full request including terms agreement
     const parsedBody = OnboardRequestSchema.safeParse(body);
 
     if (!parsedBody.success) {
+      logger.error('Request validation failed', parsedBody.error.format());
       return respond(
         c,
         failure(
@@ -43,10 +54,12 @@ export const registerAuthRoutes = (app: Hono<AppEnv>) => {
 
     // Extract termsAgreed from the request body
     const { termsAgreed = false } = body;
+    logger.info('Terms agreed status', { termsAgreed });
 
     // Get client IP and user agent for terms agreement
     const ipAddress = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || '';
     const userAgent = c.req.header('user-agent') || '';
+    logger.info('Client info', { ipAddress, userAgent });
 
     // Call service to onboard user
     const result = await onboardUser(supabase, parsedBody.data, termsAgreed, ipAddress, userAgent);
@@ -65,6 +78,8 @@ export const registerAuthRoutes = (app: Hono<AppEnv>) => {
       return respond(c, result);
     }
 
+    logger.info('Onboarding successful', { userId: result.data.userId });
+    
     // Return success response
     return respond(c, success({
       success: true,
