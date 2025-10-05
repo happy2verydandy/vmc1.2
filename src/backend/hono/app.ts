@@ -15,16 +15,16 @@ export const createHonoApp = () => {
 
   const app = new Hono<AppEnv>();
 
+  app.use('*', errorBoundary());
+  app.use('*', withAppContext());
+  app.use('*', withSupabase());
+
   // Add logging middleware to see all requests - after context is set
   app.use('*', async (c, next) => {
     const logger = c.get('logger');
     logger.info(`Hono received ${c.req.method} request to ${c.req.path}`);
     return next();
   });
-
-  app.use('*', errorBoundary());
-  app.use('*', withAppContext());
-  app.use('*', withSupabase());
 
   registerExampleRoutes(app);
   registerAuthRoutes(app);
