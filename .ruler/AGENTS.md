@@ -161,6 +161,7 @@ use following libraries for specific functionalities:
 
 - Use appropriate techniques
 - Prefer returning errors over exceptions
+- Use dialog components to clearly communicate errors to users when appropriate
 
 ## Testing:
 
