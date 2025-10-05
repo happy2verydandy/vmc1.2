@@ -19,11 +19,24 @@
 CREATE TYPE user_role AS ENUM ('learner', 'instructor');
 
 -- 사용자 프로필 테이블 (Supabase Auth와 연동)
-CREATE TABLE IF NOT EXISTS user_profiles (
+CREATE TABLE IF NOT EXISTS profiles (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE, -- Supabase Auth ID
-    role user_role NOT NULL,
-    name VARCHAR(255) NOT NULL,
-    phone VARCHAR(20),
+    email VARCHAR(255) UNIQUE NOT NULL,
+    role VARCHAR(20) NOT NULL CHECK (role IN ('learner', 'instructor')), -- 역할 (Learner/Instructor)
+    full_name VARCHAR(255) NOT NULL,
+    phone VARCHAR(20), -- 전화번호
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 약관 동의 이력 테이블
+CREATE TABLE IF NOT EXISTS terms_agreement (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE, -- 사용자 ID
+    terms_type VARCHAR(50) NOT NULL, -- 약관 종류 (예: 'general_terms', 'privacy_policy')
+    agreed_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(), -- 동의 일시
+    ip_address INET, -- 동의 시 IP 주소
+    user_agent TEXT, -- 동의 시 사용자 에이전트
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -31,7 +44,7 @@ CREATE TABLE IF NOT EXISTS user_profiles (
 -- 코스 테이블
 CREATE TABLE IF NOT EXISTS courses (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    instructor_id UUID NOT NULL REFERENCES user_profiles(id) ON DELETE CASCADE, -- 강사 ID
+    instructor_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE, -- 강사 ID
     title VARCHAR(255) NOT NULL,
     description TEXT,
     category VARCHAR(100),
@@ -47,7 +60,7 @@ CREATE TABLE IF NOT EXISTS courses (
 CREATE TABLE IF NOT EXISTS enrollments (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     course_id UUID NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
-    learner_id UUID NOT NULL REFERENCES user_profiles(id) ON DELETE CASCADE, -- 학습자 ID
+    learner_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE, -- 학습자 ID
     enrolled_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     UNIQUE(course_id, learner_id) -- 중복 수강 방지
 );
@@ -73,7 +86,7 @@ CREATE TYPE submission_status AS ENUM ('submitted', 'graded', 'resubmission_requ
 CREATE TABLE IF NOT EXISTS submissions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     assignment_id UUID NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,
-    learner_id UUID NOT NULL REFERENCES user_profiles(id) ON DELETE CASCADE, -- 학습자 ID
+    learner_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE, -- 학습자 ID
     content TEXT NOT NULL, -- 제출한 텍스트 내용
     link VARCHAR(500), -- 제출한 링크 (선택)
     submitted_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -93,15 +106,16 @@ CREATE TABLE IF NOT EXISTS submissions (
 
 -- updated_at 자동 갱신 트리거 함수
 CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER AS $
 BEGIN
     NEW.updated_at = NOW();
     RETURN NEW;
 END;
-$$ language 'plpgsql';
+$ language 'plpgsql';
 
 -- 각 테이블에 updated_at 자동 갱신 트리거 적용
-CREATE TRIGGER update_user_profiles_updated_at BEFORE UPDATE ON user_profiles FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_profiles_updated_at BEFORE UPDATE ON profiles FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_terms_agreement_updated_at BEFORE UPDATE ON terms_agreement FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_courses_updated_at BEFORE UPDATE ON courses FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_assignments_updated_at BEFORE UPDATE ON assignments FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_submissions_updated_at BEFORE UPDATE ON submissions FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
