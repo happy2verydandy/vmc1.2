@@ -1,19 +1,4 @@
-# Database Design
-
-## 1. 간략한 데이터플로우
-
-유저플로우를 기반으로 한 최소 스펙의 데이터베이스 데이터플로우는 다음과 같습니다:
-
-1. **인증 및 프로필 생성**: 사용자는 로그인/회원가입 시 Supabase Auth를 통해 계정이 생성되며, 역할 선택에 따라 프로필 테이블에 레코드가 저장됩니다.
-2. **코스 탐색 및 수강**: 학습자는 코스 목록을 조회하고, `published` 상태의 코스에 대해 수강 신청이 가능하며, 수강 이력은 `enrollments` 테이블에 기록됩니다.
-3. **과제 제출**: 학습자는 과제 마감일 전까지 제출 내용을 `submissions` 테이블에 저장하며, 마감 후 지각 여부는 플래그로 구분됩니다.
-4. **채점 및 피드백**: 강사는 학습자의 제출물을 채점하여 점수와 피드백을 저장하며, 재제출 요청 시 상태가 업데이트되어 학습자에게 다시 제출 권한이 부여됩니다.
-5. **성적 집계**: 과제별 점수는 비중을 고려해 코스별 총점으로 집계되어 학습자에게 제공됩니다.
-
-## 2. 최소 스펙 데이터베이스 스키마 (PostgreSQL)
-
-```sql
--- 0001_reset_and_create_all_tables.sql
+-- 전체 스키마 리셋 및 재생성 마이그레이션
 
 -- 1. 기존 테이블들 삭제 (존재하는 경우)
 DROP TABLE IF EXISTS submissions CASCADE;
@@ -126,6 +111,3 @@ CREATE TRIGGER update_terms_agreement_updated_at BEFORE UPDATE ON terms_agreemen
 CREATE TRIGGER update_courses_updated_at BEFORE UPDATE ON courses FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_assignments_updated_at BEFORE UPDATE ON assignments FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_submissions_updated_at BEFORE UPDATE ON submissions FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-```
-
-이 스키마는 유저플로우에 명시된 최소한의 데이터만 포함하며, 상태 기반 비즈니스 룰을 반영한 필드들로 구성되었습니다. RLS(Row Level Security)는 요구사항에 따라 비활성화되어 있습니다.
