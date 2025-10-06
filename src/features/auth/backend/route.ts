@@ -38,13 +38,15 @@ export const registerAuthRoutes = (app: Hono<AppEnv>) => {
 
     const supabase = getSupabase(c);
 
-    // Get request body from form data or JSON
+    // Get request body - form data only since HTML forms submit as form data
     let body: any;
-    try {
-      // Try to parse as JSON first
+    const contentType = c.req.header('Content-Type');
+    
+    if (contentType?.includes('application/json')) {
+      // Handle JSON requests
       body = await c.req.json();
-    } catch {
-      // If JSON parsing fails, try to parse form data
+    } else {
+      // Handle form data requests (HTML forms)
       const formData = await c.req.parseBody();
       body = {
         email: formData.email as string,
@@ -141,13 +143,15 @@ export const registerAuthRoutes = (app: Hono<AppEnv>) => {
 
     const supabase = getSupabase(c);
 
-    // Get request body from form data or JSON
+    // Get request body - form data only since HTML forms submit as form data
     let body: any;
-    try {
-      // Try to parse as JSON first
+    const contentType = c.req.header('Content-Type');
+    
+    if (contentType?.includes('application/json')) {
+      // Handle JSON requests
       body = await c.req.json();
-    } catch {
-      // If JSON parsing fails, try to parse form data
+    } else {
+      // Handle form data requests (HTML forms)
       const formData = await c.req.parseBody();
       body = {
         email: formData.email as string,
