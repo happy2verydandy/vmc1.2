@@ -60,3 +60,31 @@
 - `src/features/auth/backend/route.ts` 파일의 `/auth/login` 및 `/api/auth/login` 라우트 수정
 - JSON 파싱과 form data 파싱을 Content-Type 헤더 확인 후 적절히 분기
 - 기존 try-catch 구조 대신 명시적인 Content-Type 확인 로직 사용
+
+---
+
+# 로그인 성공 후 리다이렉션 문제 수정 요약
+
+## 문제 발생
+- 로그인 성공 후 JSON 응답이 브라우저에 직접 표시됨
+- 사용자가 로그인 후 적절한 페이지(/dashboard 등)로 리다이렉션되지 않음
+- 사용자 경험 측면에서 부자연스러운 동작
+
+## 문제 분석
+- HTML 폼 제출 방식을 사용하여 API 엔드포인트로 요청을 보내면
+- 브라우저는 응답을 현재 페이지로 간주하고 JSON 응답을 표시
+- 적절한 클라이언트 사이드 리다이렉션 로직이 누락됨
+
+## 해결 방안
+- 로그인 폼에 JavaScript를 사용하여 클라이언트 측에서 요청 처리
+- fetch API로 로그인 요청을 보내고 응답 처리
+- 성공 시 적절한 대시보드 페이지로 리다이렉션
+- 에러 발생 시 사용자에게 알림 표시
+
+## 수정 내용
+- `src/app/login/page.tsx` 파일을 클라이언트 컴포넌트로 변경
+- React 상태 관리 추가(email, password, error, loading)
+- 폼 제출 시 fetch API 사용
+- 로그인 성공 시 토큰을 localStorage에 저장
+- 사용자를 `/dashboard`로 리다이렉션
+- 로딩 상태 및 에러 메시지 UI 추가
