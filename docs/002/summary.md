@@ -49,3 +49,33 @@ AGENTS.md 문서의 모든 지침을 따름:
 - 에러 응답 패턴 준수
 
 모든 타입, 린트, 빌드 오류를 수정했으며 애플리케이션이 성공적으로 빌드되었습니다. 참고 문서의 요구 사항에 따라 학생용 코스 탐색 및 수강신청 기능이 완전히 구현되었습니다.
+
+---
+
+# 코스 목록 컴포넌트 데이터 undefined 오류 수정 요약
+
+## 문제 발생
+- http://localhost:3000/login에서 학습자 계정 정보를 입력하고 로그인 후
+- http://127.0.0.1:3000/courses로 이동하면 순간적으로 사이트가 표시되었다가
+- "Unhandled Runtime Error: TypeError: Cannot read properties of undefined (reading 'length')" 오류 발생
+- 정확한 위치: src/features/course/components/course-catalog.tsx (124:30) 라인
+- 오류 발생 코드: `Showing {data.data.length} of {data.pagination.total} courses`
+
+## 문제 분석
+- 코스 카탈로그 컴포넌트에서 `data` 변수가 undefined 상태일 때 
+- `data.data.length`에 접근하여 TypeError 발생
+- React Query 훅의 결과가 아직 로드되지 않았거나 에러 상태일 때 안전하게 처리하지 않음
+- 조건부 렌더링 로직에 오류가 있어 데이터가 완전히 로드되기 전에 접근 시도
+
+## 해결 방안
+- 컴포넌트 내에서 데이터 접근 시 추가적인 안전장치(Null check) 구현
+- `data && data.data` 형식으로 데이터 존재 여부 확인 후 접근
+- 페이지네이션 및 결과 수 표시 로직에도 동일한 안전장치 적용
+
+## 수정 내용
+- `src/features/course/components/course-catalog.tsx` 파일 수정
+1. 결과 수 표시 부분에 `data && data.data` 조건 추가
+2. 코스 그리드 렌더링 부분에 `data && data.data && data.data.length > 0` 조건 추가  
+3. 페이지네이션 부분에 `data && data.pagination` 조건 추가
+
+이제 데이터가 완전히 로드되지 않은 상태에서도 컴포넌트가 안정적으로 작동하며, TypeError 없이 적절한 로딩 상태나 빈 상태를 표시합니다.

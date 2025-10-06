@@ -119,7 +119,7 @@ export default function CourseCatalogPage() {
       </div>
 
       {/* Results Count */}
-      {data && (
+      {data && data.data && (
         <div className="mb-4 text-sm text-muted-foreground">
           Showing {data.data.length} of {data.pagination.total} courses
         </div>
@@ -146,7 +146,7 @@ export default function CourseCatalogPage() {
             </Card>
           ))}
         </div>
-      ) : data && data.data.length > 0 ? (
+      ) : data && data.data && data.data.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {data.data.map((course) => (
             <CourseCard key={course.id} course={course} />
@@ -161,7 +161,7 @@ export default function CourseCatalogPage() {
       )}
 
       {/* Pagination */}
-      {data && data.pagination.total_pages > 1 && (
+      {data && data.pagination && data.pagination.total_pages > 1 && (
         <div className="flex justify-center mt-8 space-x-2">
           <Button
             variant="outline"
