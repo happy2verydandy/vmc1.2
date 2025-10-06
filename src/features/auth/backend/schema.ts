@@ -72,6 +72,14 @@ export const UserProfileTableRowSchema = z.object({
 
 export type UserProfileTableRow = z.infer<typeof UserProfileTableRowSchema>;
 
+// Login request schema
+export const LoginRequestSchema = z.object({
+  email: z.string().email('유효한 이메일 주소를 입력해주세요.'),
+  password: z.string().min(1, '비밀번호를 입력해주세요.'),
+});
+
+export type LoginRequest = z.infer<typeof LoginRequestSchema>;
+
 export const TermsAgreementTableRowSchema = z.object({
   id: z.string().uuid(),
   user_id: z.string().uuid(),

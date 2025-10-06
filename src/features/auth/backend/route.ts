@@ -10,7 +10,7 @@ import {
   getSupabase,
   type AppEnv,
 } from '@/backend/hono/context';
-import { OnboardRequestSchema } from '@/features/auth/backend/schema';
+import { OnboardRequestSchema, LoginRequestSchema } from '@/features/auth/backend/schema';
 import { onboardUser } from './service';
 import {
   authErrorCodes,
@@ -29,6 +29,212 @@ export const registerAuthRoutes = (app: Hono<AppEnv>) => {
     const logger = getLogger(c);
     logger.info(`Received ${c.req.method} request to ${c.req.path} with api prefix`);
     return next();
+  });
+
+  // Login endpoint
+  app.post('/auth/login', async (c) => {
+    const logger = getLogger(c);
+    logger.info('Processing login request');
+
+    const supabase = getSupabase(c);
+
+    // Get request body from form data or JSON
+    let body: any;
+    try {
+      // Try to parse as JSON first
+      body = await c.req.json();
+    } catch {
+      // If JSON parsing fails, try to parse form data
+      const formData = await c.req.parseBody();
+      body = {
+        email: formData.email as string,
+        password: formData.password as string,
+      };
+    }
+
+    logger.info('Request body received', { body: Object.keys(body) });
+
+    // Validate the request body
+    const parsedBody = LoginRequestSchema.safeParse(body);
+    if (!parsedBody.success) {
+      logger.error('Login request validation failed', parsedBody.error.format());
+      return respond(
+        c,
+        failure(
+          400,
+          authErrorCodes.invalidParams,
+          'The provided login data is invalid.',
+          parsedBody.error.format(),
+        ),
+      );
+    }
+
+    const { email, password } = parsedBody.data;
+
+    try {
+      // Attempt to sign in with email and password
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        logger.error('Login failed', error.message);
+        return respond(
+          c,
+          failure(
+            401,
+            authErrorCodes.loginFailed,
+            'Invalid email or password.',
+          ),
+        );
+      }
+
+      // Get user profile to check role
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', data.user.id)
+        .single();
+
+      if (profileError) {
+        logger.error('Failed to fetch user profile', profileError.message);
+        return respond(
+          c,
+          failure(
+            500,
+            authErrorCodes.profileFetchError,
+            'Failed to fetch user profile.',
+          ),
+        );
+      }
+
+      logger.info('Login successful', { userId: data.user.id, role: profileData.role });
+
+      return respond(c, success({
+        success: true,
+        user: {
+          id: data.user.id,
+          email: data.user.email,
+          role: profileData.role,
+        },
+        token: data.session?.access_token,
+        message: 'Login successful.',
+      }));
+    } catch (error: any) {
+      logger.error('Unexpected error during login', error?.message || String(error));
+      return respond(
+        c,
+        failure(
+          500,
+          authErrorCodes.unknownError,
+          'An unexpected error occurred during login.',
+        ),
+      );
+    }
+  });
+
+  // Also register the API version of the login route
+  app.post('/api/auth/login', async (c) => {
+    const logger = getLogger(c);
+    logger.info('Processing login request via /api prefix');
+
+    const supabase = getSupabase(c);
+
+    // Get request body from form data or JSON
+    let body: any;
+    try {
+      // Try to parse as JSON first
+      body = await c.req.json();
+    } catch {
+      // If JSON parsing fails, try to parse form data
+      const formData = await c.req.parseBody();
+      body = {
+        email: formData.email as string,
+        password: formData.password as string,
+      };
+    }
+
+    logger.info('Request body received', { body: Object.keys(body) });
+
+    // Validate the request body
+    const parsedBody = LoginRequestSchema.safeParse(body);
+    if (!parsedBody.success) {
+      logger.error('Login request validation failed', parsedBody.error.format());
+      return respond(
+        c,
+        failure(
+          400,
+          authErrorCodes.invalidParams,
+          'The provided login data is invalid.',
+          parsedBody.error.format(),
+        ),
+      );
+    }
+
+    const { email, password } = parsedBody.data;
+
+    try {
+      // Attempt to sign in with email and password
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        logger.error('Login failed', error.message);
+        return respond(
+          c,
+          failure(
+            401,
+            authErrorCodes.loginFailed,
+            'Invalid email or password.',
+          ),
+        );
+      }
+
+      // Get user profile to check role
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', data.user.id)
+        .single();
+
+      if (profileError) {
+        logger.error('Failed to fetch user profile', profileError.message);
+        return respond(
+          c,
+          failure(
+            500,
+            authErrorCodes.profileFetchError,
+            'Failed to fetch user profile.',
+          ),
+        );
+      }
+
+      logger.info('Login successful', { userId: data.user.id, role: profileData.role });
+
+      return respond(c, success({
+        success: true,
+        user: {
+          id: data.user.id,
+          email: data.user.email,
+          role: profileData.role,
+        },
+        token: data.session?.access_token,
+        message: 'Login successful.',
+      }));
+    } catch (error: any) {
+      logger.error('Unexpected error during login', error?.message || String(error));
+      return respond(
+        c,
+        failure(
+          500,
+          authErrorCodes.unknownError,
+          'An unexpected error occurred during login.',
+        ),
+      );
+    }
   });
 
   // Onboard endpoint - handle both /auth/onboard and /api/auth/onboard variations

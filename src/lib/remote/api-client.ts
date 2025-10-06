@@ -7,6 +7,35 @@ const apiClient = axios.create({
   },
 });
 
+// Request interceptor to add auth token
+apiClient.interceptors.request.use(
+  (config) => {
+    // Get token from localStorage or session storage where it might be stored after login
+    const token = typeof window !== 'undefined' 
+      ? localStorage.getItem('sb-access-token') || sessionStorage.getItem('sb-access-token')
+      : null;
+      
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// Response interceptor to handle token updates
+apiClient.interceptors.response.use(
+  (response) => {
+    return response;
+  },
+  (error) => {
+    // Handle specific error cases if needed
+    return Promise.reject(error);
+  }
+);
+
 type ErrorPayload = {
   error?: {
     message?: string;

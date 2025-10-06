@@ -7,6 +7,9 @@ export const authErrorCodes = {
   termsAgreementError: 'AUTH_TERMS_AGREEMENT_ERROR',
   validationError: 'AUTH_VALIDATION_ERROR',
   unexpectedError: 'AUTH_UNEXPECTED_ERROR',
+  loginFailed: 'AUTH_LOGIN_FAILED',
+  profileFetchError: 'AUTH_PROFILE_FETCH_ERROR',
+  unknownError: 'AUTH_UNKNOWN_ERROR',
 } as const;
 
 type AuthErrorValue = (typeof authErrorCodes)[keyof typeof authErrorCodes];

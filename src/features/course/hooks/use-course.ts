@@ -21,7 +21,7 @@ export const useCoursesQuery = (params: GetCoursesParams = {}) => {
 
       const response = await apiClient.get(`/courses?${queryParams.toString()}`);
       
-      return response.data.data as PaginatedResponse<Course>;
+      return response.data as PaginatedResponse<Course>;
     },
   });
 };
@@ -32,7 +32,7 @@ export const useCourseQuery = (courseId: string) => {
     queryFn: async () => {
       const response = await apiClient.get(`/courses/${courseId}`);
       
-      return response.data.data.course as Course;
+      return (response.data as { course: Course }).course;
     },
     enabled: !!courseId,
   });
@@ -44,7 +44,7 @@ export const useEnrollmentStatusQuery = (courseId: string) => {
     queryFn: async () => {
       const response = await apiClient.get(`/courses/${courseId}/enrollment-status`);
       
-      return response.data.data as EnrollmentStatus;
+      return response.data as EnrollmentStatus;
     },
     enabled: !!courseId,
   });
@@ -57,7 +57,7 @@ export const useEnrollCourseMutation = () => {
     mutationFn: async (courseId: string) => {
       const response = await apiClient.post(`/courses/${courseId}/enroll`);
       
-      return response.data.data as { enrollment: Enrollment };
+      return response.data as { enrollment: Enrollment };
     },
     onSuccess: (data, courseId) => {
       // Invalidate and refetch relevant queries
