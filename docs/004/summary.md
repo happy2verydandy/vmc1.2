@@ -59,3 +59,21 @@
 - 과제 접근 권한은 사용자 등록 여부 확인을 통해 보장
 - 과제 제출 시 중복 제출 방지를 위한 상태 확인
 - API 응답에 대한 적절한 오류 처리 및 로깅
+
+## 8. 기능 확인 URL
+
+구현된 과제 제출 기능(004)을 확인하려면 다음 URL을 사용하세요:
+
+```
+http://localhost:3000/my/[courseId]/assignments/[assignmentId]
+```
+
+- `[courseId]`: 수강 중인 코스의 ID
+- `[assignmentId]`: 과제 제출 대상인 과제의 ID
+
+예를 들어, 코스 ID가 `abc123`이고 과제 ID가 `def456`인 경우:
+```
+http://localhost:3000/my/abc123/assignments/def456
+```
+
+이 URL 구조는 Next.js 페이지 라우팅에 따라 `/src/app/my/[courseId]/assignments/[assignmentId]/page.tsx`에 정의되어 있습니다.
