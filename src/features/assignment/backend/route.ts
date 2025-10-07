@@ -5,7 +5,11 @@ import {
   GetAssignmentRequestSchema,
   GradeSubmissionRequestSchema,
   GetSubmissionsRequestSchema,
-  SubmissionDetailSchema
+  SubmissionDetailSchema,
+  CreateAssignmentRequestSchema,
+  UpdateAssignmentRequestSchema,
+  PublishAssignmentRequestSchema,
+  CloseAssignmentRequestSchema
 } from './schema';
 import { 
   getAssignmentDetail, 
@@ -13,7 +17,11 @@ import {
   getAssignmentSubmission,
   getSubmissionsForAssignment,
   getSubmissionDetail,
-  gradeSubmission
+  gradeSubmission,
+  createAssignment,
+  updateAssignment,
+  publishAssignment,
+  closeAssignment
 } from './service';
 import { AssignmentError, AssignmentErrorCode } from './error';
 import type { AppEnv } from '@/backend/hono/context';
@@ -181,6 +189,115 @@ export const registerAssignmentRoutes = (app: Hono<AppEnv>) => {
       }
       c.get('logger').error('Failed to grade submission', { error });
       return respond(c, failure(500, 'INTERNAL_ERROR', 'Failed to grade submission'));
+    }
+  });
+
+  // Assignment 생성 (Instructor 전용)
+  app.post('/assignments', withAuth(), async (c) => {
+    try {
+      const instructorId = c.get('user_id');
+      const assignmentData = await c.req.json();
+
+      // Validate request body
+      const parsedAssignment = CreateAssignmentRequestSchema.safeParse(assignmentData);
+      if (!parsedAssignment.success) {
+        return respond(c, failure(400, 'INVALID_ASSIGNMENT_DATA', 
+          `Validation error: ${parsedAssignment.error.issues.map(i => i.message).join(', ')}`));
+      }
+
+      const validatedAssignment = parsedAssignment.data;
+
+      const createdAssignment = await createAssignment(c.get('supabase'), instructorId, validatedAssignment);
+      return respond(c, success(createdAssignment, 201));
+    } catch (error) {
+      if (error instanceof AssignmentError) {
+        return respond(c, failure(error.status as 400 | 401 | 403 | 404 | 500, 
+          error.code, error.message));
+      }
+      c.get('logger').error('Failed to create assignment', { error });
+      return respond(c, failure(500, 'INTERNAL_ERROR', 'Failed to create assignment'));
+    }
+  });
+
+  // Assignment 업데이트 (Instructor 전용)
+  app.patch('/assignments/:assignmentId', withAuth(), async (c) => {
+    try {
+      const assignmentId = c.req.param('assignmentId');
+      const instructorId = c.get('user_id');
+      const updateData = await c.req.json();
+
+      // Validate assignmentId parameter
+      const parsedId = GetAssignmentRequestSchema.safeParse({ assignmentId });
+      if (!parsedId.success) {
+        return respond(c, failure(400, 'INVALID_ASSIGNMENT_ID', 'Invalid assignment ID format'));
+      }
+
+      // Validate request body
+      const parsedUpdate = UpdateAssignmentRequestSchema.safeParse(updateData);
+      if (!parsedUpdate.success) {
+        return respond(c, failure(400, 'INVALID_ASSIGNMENT_DATA', 
+          `Validation error: ${parsedUpdate.error.issues.map(i => i.message).join(', ')}`));
+      }
+
+      const validatedUpdate = parsedUpdate.data;
+
+      const updatedAssignment = await updateAssignment(c.get('supabase'), instructorId, assignmentId, validatedUpdate);
+      return respond(c, success(updatedAssignment));
+    } catch (error) {
+      if (error instanceof AssignmentError) {
+        return respond(c, failure(error.status as 400 | 401 | 403 | 404 | 500, 
+          error.code, error.message));
+      }
+      c.get('logger').error('Failed to update assignment', { error });
+      return respond(c, failure(500, 'INTERNAL_ERROR', 'Failed to update assignment'));
+    }
+  });
+
+  // Assignment 게시 (Instructor 전용)
+  app.post('/assignments/:assignmentId/publish', withAuth(), async (c) => {
+    try {
+      const assignmentId = c.req.param('assignmentId');
+      const instructorId = c.get('user_id');
+
+      // Validate assignmentId parameter
+      const parsedId = PublishAssignmentRequestSchema.safeParse({ assignmentId });
+      if (!parsedId.success) {
+        return respond(c, failure(400, 'INVALID_ASSIGNMENT_ID', 'Invalid assignment ID format'));
+      }
+
+      const publishedAssignment = await publishAssignment(c.get('supabase'), instructorId, assignmentId);
+      return respond(c, success(publishedAssignment));
+    } catch (error) {
+      if (error instanceof AssignmentError) {
+        return respond(c, failure(error.status as 400 | 401 | 403 | 404 | 500, 
+          error.code, error.message));
+      }
+      c.get('logger').error('Failed to publish assignment', { error });
+      return respond(c, failure(500, 'INTERNAL_ERROR', 'Failed to publish assignment'));
+    }
+  });
+
+  // Assignment 마감 (Instructor 전용)
+  app.post('/assignments/:assignmentId/close', withAuth(), async (c) => {
+    try {
+      const assignmentId = c.req.param('assignmentId');
+      const instructorId = c.get('user_id');
+
+      // Validate assignmentId parameter
+      const parsedId = CloseAssignmentRequestSchema.safeParse({ assignmentId });
+      if (!parsedId.success) {
+        return respond(c, failure(400, 'INVALID_ASSIGNMENT_ID', 'Invalid assignment ID format'));
+      }
+
+      const closedAssignment = await closeAssignment(c.get('supabase'), instructorId, assignmentId);
+      return respond(c, success(closedAssignment));
+    } catch (error) {
+      if (error instanceof AssignmentError) {
+        return respond(c, failure(error.status as 400 | 401 | 403 | 404 | 500, 
+          error.code, error.message));
+      }
+      c.get('logger').error('Failed to close assignment', { error });
+      return respond(c, failure(500, 'INTERNAL_ERROR', 'Failed to close assignment'));
     }
   });
 };

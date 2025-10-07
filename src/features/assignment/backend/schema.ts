@@ -20,6 +20,36 @@ export const AssignmentResponseSchema = AssignmentSchema.extend({
   course_instructor_name: z.string(),
 });
 
+// Assignment 생성/수정 스키마
+export const CreateAssignmentRequestSchema = z.object({
+  course_id: z.string().uuid(),
+  title: z.string().min(1, 'Title is required'),
+  description: z.string().optional(),
+  due_date: z.string().datetime(),
+  weight: z.number().min(0).max(100),
+  late_submission_allowed: z.boolean().default(false),
+  resubmission_allowed: z.boolean().default(false),
+  status: z.enum(['draft', 'published']).default('draft'),
+});
+
+export const UpdateAssignmentRequestSchema = z.object({
+  title: z.string().min(1, 'Title is required').optional(),
+  description: z.string().optional(),
+  due_date: z.string().datetime().optional(),
+  weight: z.number().min(0).max(100).optional(),
+  late_submission_allowed: z.boolean().optional(),
+  resubmission_allowed: z.boolean().optional(),
+  status: z.enum(['draft', 'published', 'closed']).optional(),
+});
+
+export const PublishAssignmentRequestSchema = z.object({
+  assignmentId: z.string().uuid(),
+});
+
+export const CloseAssignmentRequestSchema = z.object({
+  assignmentId: z.string().uuid(),
+});
+
 export const SubmissionRequestSchema = z.object({
   assignment_id: z.string().uuid(),
   content: z.string().min(1, 'Content is required'),
@@ -76,6 +106,10 @@ export const SubmissionDetailSchema = z.object({
 
 export type Assignment = z.infer<typeof AssignmentSchema>;
 export type AssignmentResponse = z.infer<typeof AssignmentResponseSchema>;
+export type CreateAssignmentRequest = z.infer<typeof CreateAssignmentRequestSchema>;
+export type UpdateAssignmentRequest = z.infer<typeof UpdateAssignmentRequestSchema>;
+export type PublishAssignmentRequest = z.infer<typeof PublishAssignmentRequestSchema>;
+export type CloseAssignmentRequest = z.infer<typeof CloseAssignmentRequestSchema>;
 export type SubmissionRequest = z.infer<typeof SubmissionRequestSchema>;
 export type Submission = z.infer<typeof SubmissionSchema>;
 export type GradeSubmissionRequest = z.infer<typeof GradeSubmissionRequestSchema>;

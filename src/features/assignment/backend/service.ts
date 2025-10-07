@@ -1,4 +1,4 @@
-import { AssignmentResponse, Assignment, SubmissionRequest, Submission, GradeSubmissionRequest, SubmissionDetail } from './schema';
+import { AssignmentResponse, Assignment, SubmissionRequest, Submission, GradeSubmissionRequest, SubmissionDetail, CreateAssignmentRequest, UpdateAssignmentRequest } from './schema';
 import { AssignmentError, AssignmentErrorCode } from './error';
 
 type SupabaseClient = any; // 실제 Supabase 클라이언트 타입으로 대체 필요
@@ -433,4 +433,314 @@ export const gradeSubmission = async (
   }
 
   return updatedSubmission as Submission;
+};
+
+/**
+ * Assignment를 생성하는 서비스 함수
+ * - Instructor가 본인 코스에 대한 과제 생성
+ * - 기본적으로 draft 상태로 생성
+ */
+export const createAssignment = async (
+  supabase: SupabaseClient,
+  instructorId: string,
+  assignmentData: CreateAssignmentRequest
+): Promise<Assignment> => {
+  const { course_id, title, description, due_date, weight, late_submission_allowed, resubmission_allowed, status } = assignmentData;
+
+  // 1. Instructor가 해당 코스의 강사인지 확인
+  const { data: course, error: courseError } = await supabase
+    .from('courses')
+    .select('id')
+    .eq('id', course_id)
+    .eq('instructor_id', instructorId)
+    .single();
+
+  if (courseError || !course) {
+    throw new AssignmentError(
+      AssignmentErrorCode.UNAUTHORIZED_ACCESS,
+      'Unauthorized access to course',
+      403
+    );
+  }
+
+  // 2. 마감일이 유효한지 확인 (과거일 수 없음)
+  const dueDate = new Date(due_date);
+  const now = new Date();
+  if (dueDate < now && status === 'published') {
+    throw new AssignmentError(
+      AssignmentErrorCode.INVALID_ASSIGNMENT_DATA,
+      'Due date cannot be in the past when publishing assignment',
+      400
+    );
+  }
+
+  // 3. Assignment 생성
+  const newAssignment = {
+    course_id,
+    title,
+    description: description || '',
+    due_date,
+    weight,
+    late_submission_allowed,
+    resubmission_allowed,
+    status: status || 'draft',
+  };
+
+  const { data: createdAssignment, error: createError } = await supabase
+    .from('assignments')
+    .insert(newAssignment)
+    .select()
+    .single();
+
+  if (createError) {
+    throw new AssignmentError(
+      AssignmentErrorCode.INVALID_ASSIGNMENT_DATA,
+      'Failed to create assignment: ' + createError.message,
+      500
+    );
+  }
+
+  return createdAssignment as Assignment;
+};
+
+/**
+ * Assignment를 업데이트하는 서비스 함수
+ * - Instructor가 본인 코스에 대한 과제 수정
+ * - 상태 전이 유효성 검사 포함
+ */
+export const updateAssignment = async (
+  supabase: SupabaseClient,
+  instructorId: string,
+  assignmentId: string,
+  updateData: UpdateAssignmentRequest
+): Promise<Assignment> => {
+  // 1. Assignment 정보 조회
+  const { data: assignment, error: assignmentError } = await supabase
+    .from('assignments')
+    .select(`
+      id,
+      course_id,
+      status,
+      courses(instructor_id)
+    `)
+    .eq('id', assignmentId)
+    .single();
+
+  if (assignmentError || !assignment) {
+    throw new AssignmentError(
+      AssignmentErrorCode.ASSIGNMENT_NOT_FOUND,
+      'Assignment not found',
+      404
+    );
+  }
+
+  // 2. Instructor가 해당 과제의 강사인지 확인
+  if (assignment.courses.instructor_id !== instructorId) {
+    throw new AssignmentError(
+      AssignmentErrorCode.UNAUTHORIZED_ACCESS,
+      'Unauthorized access to assignment',
+      403
+    );
+  }
+
+  // 3. 상태 전이 유효성 검사
+  const currentStatus = assignment.status;
+  const newStatus = updateData.status;
+  if (newStatus) {
+    if (
+      (currentStatus === 'published' && newStatus === 'draft') ||
+      (currentStatus === 'closed' && newStatus === 'draft') ||
+      (currentStatus === 'closed' && newStatus === 'published')
+    ) {
+      throw new AssignmentError(
+        AssignmentErrorCode.INVALID_STATUS_TRANSITION,
+        `Invalid status transition from ${currentStatus} to ${newStatus}`,
+        400
+      );
+    }
+  }
+
+  // 4. 마감일이 변경되었고, 상태가 published인 경우 유효성 검사
+  if (updateData.due_date && assignment.status === 'published') {
+    const dueDate = new Date(updateData.due_date);
+    const now = new Date();
+    if (dueDate < now) {
+      throw new AssignmentError(
+        AssignmentErrorCode.INVALID_ASSIGNMENT_DATA,
+        'Due date cannot be in the past for published assignment',
+        400
+      );
+    }
+  }
+
+  // 5. Assignment 업데이트
+  const { data: updatedAssignment, error: updateError } = await supabase
+    .from('assignments')
+    .update({
+      ...updateData,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', assignmentId)
+    .select()
+    .single();
+
+  if (updateError) {
+    throw new AssignmentError(
+      AssignmentErrorCode.INVALID_ASSIGNMENT_DATA,
+      'Failed to update assignment: ' + updateError.message,
+      500
+    );
+  }
+
+  return updatedAssignment as Assignment;
+};
+
+/**
+ * Assignment를 게시하는 서비스 함수
+ * - Assignment 상태를 draft에서 published로 변경
+ */
+export const publishAssignment = async (
+  supabase: SupabaseClient,
+  instructorId: string,
+  assignmentId: string
+): Promise<Assignment> => {
+  // 1. Assignment 정보 조회
+  const { data: assignment, error: assignmentError } = await supabase
+    .from('assignments')
+    .select(`
+      id,
+      course_id,
+      status,
+      due_date,
+      courses(instructor_id)
+    `)
+    .eq('id', assignmentId)
+    .single();
+
+  if (assignmentError || !assignment) {
+    throw new AssignmentError(
+      AssignmentErrorCode.ASSIGNMENT_NOT_FOUND,
+      'Assignment not found',
+      404
+    );
+  }
+
+  // 2. Instructor가 해당 과제의 강사인지 확인
+  if (assignment.courses.instructor_id !== instructorId) {
+    throw new AssignmentError(
+      AssignmentErrorCode.UNAUTHORIZED_ACCESS,
+      'Unauthorized access to assignment',
+      403
+    );
+  }
+
+  // 3. 현재 상태가 draft인지 확인
+  if (assignment.status !== 'draft') {
+    throw new AssignmentError(
+      AssignmentErrorCode.ASSIGNMENT_ALREADY_PUBLISHED,
+      'Assignment is not in draft state',
+      400
+    );
+  }
+
+  // 4. 마감일이 유효한지 확인
+  const dueDate = new Date(assignment.due_date);
+  const now = new Date();
+  if (dueDate < now) {
+    throw new AssignmentError(
+      AssignmentErrorCode.INVALID_ASSIGNMENT_DATA,
+      'Due date cannot be in the past when publishing assignment',
+      400
+    );
+  }
+
+  // 5. Assignment 상태를 published로 변경
+  const { data: updatedAssignment, error: updateError } = await supabase
+    .from('assignments')
+    .update({ 
+      status: 'published',
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', assignmentId)
+    .select()
+    .single();
+
+  if (updateError) {
+    throw new AssignmentError(
+      AssignmentErrorCode.INVALID_ASSIGNMENT_DATA,
+      'Failed to publish assignment: ' + updateError.message,
+      500
+    );
+  }
+
+  return updatedAssignment as Assignment;
+};
+
+/**
+ * Assignment를 마감하는 서비스 함수
+ * - Assignment 상태를 published에서 closed로 변경
+ */
+export const closeAssignment = async (
+  supabase: SupabaseClient,
+  instructorId: string,
+  assignmentId: string
+): Promise<Assignment> => {
+  // 1. Assignment 정보 조회
+  const { data: assignment, error: assignmentError } = await supabase
+    .from('assignments')
+    .select(`
+      id,
+      course_id,
+      status,
+      courses(instructor_id)
+    `)
+    .eq('id', assignmentId)
+    .single();
+
+  if (assignmentError || !assignment) {
+    throw new AssignmentError(
+      AssignmentErrorCode.ASSIGNMENT_NOT_FOUND,
+      'Assignment not found',
+      404
+    );
+  }
+
+  // 2. Instructor가 해당 과제의 강사인지 확인
+  if (assignment.courses.instructor_id !== instructorId) {
+    throw new AssignmentError(
+      AssignmentErrorCode.UNAUTHORIZED_ACCESS,
+      'Unauthorized access to assignment',
+      403
+    );
+  }
+
+  // 3. 현재 상태가 published인지 확인
+  if (assignment.status !== 'published') {
+    throw new AssignmentError(
+      AssignmentErrorCode.ASSIGNMENT_ALREADY_CLOSED,
+      'Assignment is not in published state',
+      400
+    );
+  }
+
+  // 4. Assignment 상태를 closed로 변경
+  const { data: updatedAssignment, error: updateError } = await supabase
+    .from('assignments')
+    .update({ 
+      status: 'closed',
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', assignmentId)
+    .select()
+    .single();
+
+  if (updateError) {
+    throw new AssignmentError(
+      AssignmentErrorCode.INVALID_ASSIGNMENT_DATA,
+      'Failed to close assignment: ' + updateError.message,
+      500
+    );
+  }
+
+  return updatedAssignment as Assignment;
 };
