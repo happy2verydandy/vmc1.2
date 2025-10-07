@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiClient } from '@/lib/remote/api-client';
+import { apiClient, extractApiErrorMessage } from '@/lib/remote/api-client';
 import { Submission, SubmissionRequest } from '../lib/dto';
 
 export const useSubmitAssignmentMutation = () => {
@@ -14,6 +14,10 @@ export const useSubmitAssignmentMutation = () => {
       // 제출 성공 후 쿼리 무효화하여 최신 정보 가져오기
       queryClient.invalidateQueries({ queryKey: ['assignment', variables.assignment_id] });
       queryClient.invalidateQueries({ queryKey: ['assignment-submission', variables.assignment_id] });
+    },
+    onError: (error) => {
+      // Error is handled in the component
+      console.error('Submission error:', error);
     },
   });
 };

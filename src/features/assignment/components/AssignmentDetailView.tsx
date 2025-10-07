@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Clock, Calendar, Percent, AlertCircle } from 'lucide-react';
+import { Clock, Calendar, Percent, AlertCircle, CheckCircle } from 'lucide-react';
 import { AssignmentResponse, Submission } from '../lib/dto';
 import { useAssignmentDetailQuery } from '../hooks/useAssignmentDetailQuery';
 import { useAssignmentSubmissionQuery, useSubmitAssignmentMutation } from '../hooks/useSubmitAssignmentMutation';
@@ -50,6 +50,16 @@ export const AssignmentDetailView: React.FC<AssignmentDetailViewProps> = ({ assi
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Input validation
+    if (!content.trim()) {
+      return;
+    }
+    
+    // Check if link is provided and if it's a valid URL
+    if (link && !isValidUrl(link)) {
+      return;
+    }
+    
     mutation.mutate({
       assignment_id: assignmentId,
       content,
@@ -57,10 +67,23 @@ export const AssignmentDetailView: React.FC<AssignmentDetailViewProps> = ({ assi
     });
   };
 
+  // Helper function to validate URL
+  const isValidUrl = (string: string) => {
+    try {
+      new URL(string);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  };
+
   const now = new Date();
   const dueDate = new Date(assignment.due_date);
   const isOverdue = now > dueDate;
   const isClosed = assignment.status === 'closed';
+
+  // Check if submission is blocked based on policies
+  const isSubmissionBlocked = isClosed || (isOverdue && !assignment.late_submission_allowed);
 
   return (
     <div className="container mx-auto py-6 px-4 max-w-4xl">
@@ -128,15 +151,18 @@ export const AssignmentDetailView: React.FC<AssignmentDetailViewProps> = ({ assi
           <form onSubmit={handleSubmit}>
             <div className="space-y-4">
               <div>
-                <Label htmlFor="content">Content</Label>
+                <Label htmlFor="content">Content *</Label>
                 <Textarea
                   id="content"
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
                   placeholder="Enter your assignment content here..."
-                  disabled={isClosed || (isOverdue && !assignment.late_submission_allowed)}
+                  disabled={isSubmissionBlocked}
                   rows={6}
                 />
+                {!content.trim() && (
+                  <p className="text-sm text-destructive mt-1">Content is required.</p>
+                )}
               </div>
               
               <div>
@@ -147,23 +173,44 @@ export const AssignmentDetailView: React.FC<AssignmentDetailViewProps> = ({ assi
                   value={link}
                   onChange={(e) => setLink(e.target.value)}
                   placeholder="https://example.com/assignment-submission"
-                  disabled={isClosed || (isOverdue && !assignment.late_submission_allowed)}
+                  disabled={isSubmissionBlocked}
                 />
+                {link && !isValidUrl(link) && (
+                  <p className="text-sm text-destructive mt-1">Please enter a valid URL.</p>
+                )}
               </div>
               
               <Button 
                 type="submit" 
                 disabled={
                   mutation.isPending || 
-                  isClosed || 
-                  (isOverdue && !assignment.late_submission_allowed) ||
-                  !content.trim()
+                  isSubmissionBlocked ||
+                  !content.trim() ||
+                  (link && !isValidUrl(link))
                 }
               >
                 {mutation.isPending ? 'Submitting...' : 'Submit Assignment'}
               </Button>
             </div>
           </form>
+
+          {mutation.isError && (
+            <Alert variant="destructive" className="mt-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                {mutation.error.message || 'An error occurred while submitting the assignment.'}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {mutation.isSuccess && !mutation.isPending && (
+            <Alert variant="default" className="mt-4 border-green-200 bg-green-50">
+              <CheckCircle className="h-4 w-4 text-green-600" />
+              <AlertDescription className="text-green-700">
+                Assignment submitted successfully!
+              </AlertDescription>
+            </Alert>
+          )}
 
           {submission && (
             <div className="mt-6 p-4 bg-muted rounded-lg">

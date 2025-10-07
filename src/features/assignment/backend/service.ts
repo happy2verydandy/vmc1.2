@@ -157,11 +157,15 @@ export const submitAssignment = async (
   }
 
   // 5. 제출 정보 저장
+  // 상태는 항상 'submitted'로 설정
+  const submissionStatus = 'submitted';
+  
   const submissionDataToInsert = {
     assignment_id,
     learner_id: userId,
     content,
     link: link || null,
+    status: submissionStatus,
     is_late: isLate,
     ...(existingSubmission ? { id: existingSubmission.id } : {}), // 기존 제출이 있으면 업데이트
   };
