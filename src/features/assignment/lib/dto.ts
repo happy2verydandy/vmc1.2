@@ -4,4 +4,7 @@ export type {
   AssignmentResponse,
   SubmissionRequest,
   Submission,
+  GradeSubmissionRequest,
+  GetSubmissionsRequest,
+  SubmissionDetail,
 } from '../backend/schema';

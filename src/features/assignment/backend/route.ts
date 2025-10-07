@@ -1,6 +1,20 @@
 import { Hono } from 'hono';
-import { AssignmentResponseSchema, SubmissionRequestSchema, GetAssignmentRequestSchema } from './schema';
-import { getAssignmentDetail, submitAssignment, getAssignmentSubmission } from './service';
+import { 
+  AssignmentResponseSchema, 
+  SubmissionRequestSchema, 
+  GetAssignmentRequestSchema,
+  GradeSubmissionRequestSchema,
+  GetSubmissionsRequestSchema,
+  SubmissionDetailSchema
+} from './schema';
+import { 
+  getAssignmentDetail, 
+  submitAssignment, 
+  getAssignmentSubmission,
+  getSubmissionsForAssignment,
+  getSubmissionDetail,
+  gradeSubmission
+} from './service';
 import { AssignmentError, AssignmentErrorCode } from './error';
 import type { AppEnv } from '@/backend/hono/context';
 import { failure, respond, success } from '@/backend/http/response';
@@ -91,6 +105,82 @@ export const registerAssignmentRoutes = (app: Hono<AppEnv>) => {
       }
       c.get('logger').error('Failed to fetch assignment submission', { error });
       return respond(c, failure(500, 'INTERNAL_ERROR', 'Failed to fetch assignment submission'));
+    }
+  });
+
+  // Assignment별 제출물 목록 조회 (Instructor 전용)
+  app.get('/assignments/:assignmentId/submissions', withAuth(), async (c) => {
+    try {
+      const assignmentId = c.req.param('assignmentId');
+      const instructorId = c.get('user_id');
+
+      // Validate assignmentId parameter
+      const parsedId = GetSubmissionsRequestSchema.safeParse({ assignmentId });
+      if (!parsedId.success) {
+        return respond(c, failure(400, 'INVALID_ASSIGNMENT_ID', 'Invalid assignment ID format'));
+      }
+
+      const submissions = await getSubmissionsForAssignment(c.get('supabase'), instructorId, assignmentId);
+      return respond(c, success(submissions));
+    } catch (error) {
+      if (error instanceof AssignmentError) {
+        return respond(c, failure(error.status as 400 | 401 | 403 | 404 | 500, 
+          error.code, error.message));
+      }
+      c.get('logger').error('Failed to fetch submissions', { error });
+      return respond(c, failure(500, 'INTERNAL_ERROR', 'Failed to fetch submissions'));
+    }
+  });
+
+  // 제출물 상세 정보 조회 (Instructor 전용)
+  app.get('/submissions/:submissionId', withAuth(), async (c) => {
+    try {
+      const submissionId = c.req.param('submissionId');
+      const instructorId = c.get('user_id');
+
+      // Validate submissionId parameter
+      const parsedId = submissionId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+      if (!parsedId) {
+        return respond(c, failure(400, 'INVALID_SUBMISSION_ID', 'Invalid submission ID format'));
+      }
+
+      const submissionDetail = await getSubmissionDetail(c.get('supabase'), instructorId, submissionId);
+      return respond(c, success(submissionDetail));
+    } catch (error) {
+      if (error instanceof AssignmentError) {
+        return respond(c, failure(error.status as 400 | 401 | 403 | 404 | 500, 
+          error.code, error.message));
+      }
+      c.get('logger').error('Failed to fetch submission detail', { error });
+      return respond(c, failure(500, 'INTERNAL_ERROR', 'Failed to fetch submission detail'));
+    }
+  });
+
+  // 제출물 채점 (Instructor 전용)
+  app.post('/submissions/:submissionId/grade', withAuth(), async (c) => {
+    try {
+      const submissionId = c.req.param('submissionId');
+      const instructorId = c.get('user_id');
+      const gradeData = await c.req.json();
+
+      // Validate request body
+      const parsedGrade = GradeSubmissionRequestSchema.safeParse(gradeData);
+      if (!parsedGrade.success) {
+        return respond(c, failure(400, 'INVALID_GRADE_DATA', 
+          `Validation error: ${parsedGrade.error.issues.map(i => i.message).join(', ')}`));
+      }
+
+      const validatedGrade = parsedGrade.data;
+
+      const updatedSubmission = await gradeSubmission(c.get('supabase'), instructorId, submissionId, validatedGrade);
+      return respond(c, success(updatedSubmission));
+    } catch (error) {
+      if (error instanceof AssignmentError) {
+        return respond(c, failure(error.status as 400 | 401 | 403 | 404 | 500, 
+          error.code, error.message));
+      }
+      c.get('logger').error('Failed to grade submission', { error });
+      return respond(c, failure(500, 'INTERNAL_ERROR', 'Failed to grade submission'));
     }
   });
 };

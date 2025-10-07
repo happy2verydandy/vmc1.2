@@ -46,7 +46,38 @@ export const GetAssignmentRequestSchema = z.object({
   assignmentId: z.string().uuid(),
 });
 
+// 과제 채점 관련 스키마 추가
+export const GradeSubmissionRequestSchema = z.object({
+  grade: z.number().min(0).max(100),
+  feedback: z.string().min(1, 'Feedback is required'),
+  status: z.enum(['graded', 'resubmission_required']),
+});
+
+export const GetSubmissionsRequestSchema = z.object({
+  assignmentId: z.string().uuid(),
+});
+
+export const SubmissionDetailSchema = z.object({
+  id: z.string().uuid(),
+  assignment_id: z.string().uuid(),
+  learner_id: z.string().uuid(),
+  learner_name: z.string(),
+  content: z.string(),
+  link: z.string().nullable(),
+  submitted_at: z.string().datetime(),
+  status: z.enum(['submitted', 'graded', 'resubmission_required']),
+  is_late: z.boolean().default(false),
+  grade: z.number().nullable(),
+  feedback: z.string().nullable(),
+  graded_at: z.string().datetime().nullable(),
+  created_at: z.string().datetime(),
+  updated_at: z.string().datetime(),
+});
+
 export type Assignment = z.infer<typeof AssignmentSchema>;
 export type AssignmentResponse = z.infer<typeof AssignmentResponseSchema>;
 export type SubmissionRequest = z.infer<typeof SubmissionRequestSchema>;
 export type Submission = z.infer<typeof SubmissionSchema>;
+export type GradeSubmissionRequest = z.infer<typeof GradeSubmissionRequestSchema>;
+export type GetSubmissionsRequest = z.infer<typeof GetSubmissionsRequestSchema>;
+export type SubmissionDetail = z.infer<typeof SubmissionDetailSchema>;

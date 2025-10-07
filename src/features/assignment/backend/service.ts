@@ -1,4 +1,4 @@
-import { AssignmentResponse, Assignment, SubmissionRequest, Submission } from './schema';
+import { AssignmentResponse, Assignment, SubmissionRequest, Submission, GradeSubmissionRequest, SubmissionDetail } from './schema';
 import { AssignmentError, AssignmentErrorCode } from './error';
 
 type SupabaseClient = any; // 실제 Supabase 클라이언트 타입으로 대체 필요
@@ -232,4 +232,205 @@ export const getAssignmentSubmission = async (
   }
 
   return submission as Submission;
+};
+
+/**
+ * 특정 Assignment의 모든 제출물 목록을 조회하는 함수
+ * - Instructor가 본인 코스의 과제에 대해서만 조회 가능
+ */
+export const getSubmissionsForAssignment = async (
+  supabase: SupabaseClient,
+  instructorId: string,
+  assignmentId: string
+): Promise<SubmissionDetail[]> => {
+  // 1. Assignment가 Instructor의 코스에 속하는지 확인
+  const { data: assignment, error: assignmentError } = await supabase
+    .from('assignments')
+    .select(`
+      id,
+      course_id,
+      courses(instructor_id)
+    `)
+    .eq('id', assignmentId)
+    .eq('courses.instructor_id', instructorId)
+    .single();
+
+  if (assignmentError || !assignment) {
+    throw new AssignmentError(
+      AssignmentErrorCode.UNAUTHORIZED_ACCESS,
+      'Unauthorized access to assignment',
+      403
+    );
+  }
+
+  // 2. 해당 Assignment의 모든 제출물 조회
+  const { data: submissions, error: submissionsError } = await supabase
+    .from('submissions')
+    .select(`
+      submissions.*,
+      profiles(full_name)
+    `)
+    .eq('assignment_id', assignmentId)
+    .order('submitted_at', { ascending: false });
+
+  if (submissionsError) {
+    throw new AssignmentError(
+      AssignmentErrorCode.SUBMISSIONS_FETCH_ERROR,
+      'Failed to fetch submissions',
+      500
+    );
+  }
+
+  // 3. 제출물 목록 반환
+  return submissions.map(sub => ({
+    id: sub.id,
+    assignment_id: sub.assignment_id,
+    learner_id: sub.learner_id,
+    learner_name: sub.profiles?.full_name || 'Unknown',
+    content: sub.content,
+    link: sub.link,
+    submitted_at: sub.submitted_at,
+    status: sub.status,
+    is_late: sub.is_late,
+    grade: sub.grade,
+    feedback: sub.feedback,
+    graded_at: sub.graded_at,
+    created_at: sub.created_at,
+    updated_at: sub.updated_at,
+  }));
+};
+
+/**
+ * 특정 제출물의 상세 정보를 조회하는 함수
+ * - Instructor가 본인 코스의 과제에 대해서만 조회 가능
+ */
+export const getSubmissionDetail = async (
+  supabase: SupabaseClient,
+  instructorId: string,
+  submissionId: string
+): Promise<SubmissionDetail> => {
+  // 1. 제출물 정보 조회
+  const { data: submission, error: submissionError } = await supabase
+    .from('submissions')
+    .select(`
+      submissions.*,
+      assignments(course_id),
+      courses(instructor_id),
+      profiles(full_name)
+    `)
+    .eq('submissions.id', submissionId)
+    .single();
+
+  if (submissionError || !submission) {
+    throw new AssignmentError(
+      AssignmentErrorCode.SUBMISSION_NOT_FOUND,
+      'Submission not found',
+      404
+    );
+  }
+
+  // 2. Instructor가 해당 과제의 담당자인지 확인
+  if (submission.courses.instructor_id !== instructorId) {
+    throw new AssignmentError(
+      AssignmentErrorCode.UNAUTHORIZED_ACCESS,
+      'Unauthorized access to submission',
+      403
+    );
+  }
+
+  // 3. 제출물 상세 정보 반환
+  return {
+    id: submission.id,
+    assignment_id: submission.assignment_id,
+    learner_id: submission.learner_id,
+    learner_name: submission.profiles?.full_name || 'Unknown',
+    content: submission.content,
+    link: submission.link,
+    submitted_at: submission.submitted_at,
+    status: submission.status,
+    is_late: submission.is_late,
+    grade: submission.grade,
+    feedback: submission.feedback,
+    graded_at: submission.graded_at,
+    created_at: submission.created_at,
+    updated_at: submission.updated_at,
+  };
+};
+
+/**
+ * 제출물을 채점하는 함수
+ * - 점수(0~100) 및 피드백 저장
+ * - 상태 업데이트 (graded / resubmission_required)
+ * - Instructor가 본인 코스의 과제에 대해서만 채점 가능
+ */
+export const gradeSubmission = async (
+  supabase: SupabaseClient,
+  instructorId: string,
+  submissionId: string,
+  gradeData: GradeSubmissionRequest
+): Promise<Submission> => {
+  const { grade, feedback, status } = gradeData;
+
+  // 1. 제출물 정보 조회
+  const { data: submission, error: submissionError } = await supabase
+    .from('submissions')
+    .select(`
+      id,
+      assignment_id,
+      assignments(course_id),
+      courses(instructor_id)
+    `)
+    .eq('submissions.id', submissionId)
+    .single();
+
+  if (submissionError || !submission) {
+    throw new AssignmentError(
+      AssignmentErrorCode.SUBMISSION_NOT_FOUND,
+      'Submission not found',
+      404
+    );
+  }
+
+  // 2. Instructor가 해당 과제의 담당자인지 확인
+  if (submission.courses.instructor_id !== instructorId) {
+    throw new AssignmentError(
+      AssignmentErrorCode.UNAUTHORIZED_ACCESS,
+      'Unauthorized access to submission',
+      403
+    );
+  }
+
+  // 3. 점수 범위 및 피드백 검증
+  if (grade < 0 || grade > 100) {
+    throw new AssignmentError(
+      AssignmentErrorCode.INVALID_GRADE,
+      'Grade must be between 0 and 100',
+      400
+    );
+  }
+
+  // 4. 제출물 업데이트
+  const updateData: any = {
+    grade,
+    feedback,
+    status,
+    graded_at: new Date().toISOString(),
+  };
+
+  const { data: updatedSubmission, error: updateError } = await supabase
+    .from('submissions')
+    .update(updateData)
+    .eq('id', submissionId)
+    .select()
+    .single();
+
+  if (updateError) {
+    throw new AssignmentError(
+      AssignmentErrorCode.GRADE_SUBMISSION_ERROR,
+      'Failed to grade submission: ' + updateError.message,
+      500
+    );
+  }
+
+  return updatedSubmission as Submission;
 };
