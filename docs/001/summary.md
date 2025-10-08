@@ -114,3 +114,32 @@
 - `src/app/(protected)/instructor/dashboard/page.tsx`: Instructor 전용 대시보드 페이지 생성
 - `src/app/(protected)/instructor/layout.tsx`: Instructor 전용 레이아웃 생성
 - 서버 사이드에서 인증 상태 및 사용자 역할 확인 로직 구현
+
+---
+
+# 로그인 후 리다이렉션 문제 근본적 해결 요약
+
+## 문제 발생
+- Instructor 계정으로 로그인 후 `/dashboard`로 이동하지만, 다시 `/login` 페이지로 리다이렉션되는 문제 지속
+- Client Side Protected Layout과 Server Side 미들웨어 간 인증 상태 동기화 문제로 인한 무한 리디렉션 루프
+
+## 문제 분석
+- `(protected)` 그룹 폴더 구조에서 Client Side Protected Layout이 인증 확인을 수행하면서 서버 미들웨어와 충돌
+- 서버 미들웨어가 인증 상태를 확인하더라도 클라이언트 측 레이아웃이 다시 인증 상태를 확인하면서 리디렉션 충돌 발생
+
+## 해결 방안
+- `(protected)` 그룹 폴더 구조 제거
+- 모든 인증이 필요한 페이지를 서버 컴포넌트로 전환
+- 각 페이지에서 서버 측에서 직접 인증 상태 확인 및 적절한 리다이렉션 처리
+
+## 수정 내용
+- `(protected)` 폴더 제거 및 하위 페이지 이동:
+  - `src/app/dashboard/page.tsx` (새 위치)
+  - `src/app/instructor/dashboard/page.tsx` (새 위치)
+  - `src/app/my/grades/page.tsx` (서버 컴포넌트로 전환)
+  - `src/app/my/[courseId]/assignments/[assignmentId]/page.tsx` (서버 컴포넌트로 전환)
+  - `src/app/instructor/[courseId]/assignments/[assignmentId]/submissions/[submissionId]/page.tsx` (새로 생성)
+- 모든 페이지에서 `loadCurrentUser`를 사용한 서버 측 인증 확인 구현
+- Instructor 계정 로그인 시 적절한 대시보드로 자동 리다이렉션
+- 인증되지 않은 사용자의 접근 요청 시 로그인 페이지로 리다이렉션
+
