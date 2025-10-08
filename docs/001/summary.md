@@ -88,3 +88,29 @@
 - 로그인 성공 시 토큰을 localStorage에 저장
 - 사용자를 `/dashboard`로 리다이렉션
 - 로딩 상태 및 에러 메시지 UI 추가
+---
+
+# 로그인 후 리다이렉션 문제 수정 요약
+
+## 문제 발생
+- Instructor 계정으로 로그인 후 `/dashboard`로 이동하지만, 다시 `/login` 페이지로 리다이렉션되는 문제 발생
+- URL에 `redirectedFrom=%2Fdashboard` 파라미터가 추가된 상태로 로그인 페이지에 머무름
+- 로그인은 성공했으나 인증 상태가 제대로 업데이트되지 않아 보호된 경로에서 다시 로그인 페이지로 리디렉션됨
+
+## 문제 분석
+- Client Side Redirect 방식에서 인증 상태 업데이트 지연으로 인한 문제
+- `ProtectedLayout` 컴포넌트에서 인증 상태 확인 로직으로 인한 무한 리디렉션 발생
+- Instructor 계정 로그인 후 적절한 Instructor 대시보드로 리다이렉션되지 않음
+
+## 해결 방안
+- 로그인 후 전체 페이지 리로드를 통해 인증 컨텍스트를 즉시 업데이트
+- 서버 컴포넌트에서 사용자 역할 기반 리다이렉션 로직 구현
+- Instructor 전용 대시보드 페이지 및 레이아웃 생성
+- 사용자 역할에 따라 적절한 대시보드로 자동 리다이렉션
+
+## 수정 내용
+- `src/app/login/page.tsx`: `router.push` 대신 `window.location.href` 사용하여 전체 리로드
+- `src/app/(protected)/dashboard/page.tsx`: 서버 컴포넌트로 변경 및 역할 기반 리다이렉션 로직 추가
+- `src/app/(protected)/instructor/dashboard/page.tsx`: Instructor 전용 대시보드 페이지 생성
+- `src/app/(protected)/instructor/layout.tsx`: Instructor 전용 레이아웃 생성
+- 서버 사이드에서 인증 상태 및 사용자 역할 확인 로직 구현

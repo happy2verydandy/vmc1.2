@@ -34,9 +34,8 @@ const LoginPage = () => {
           sessionStorage.setItem('sb-access-token', data.token);
         }
         
-        // Redirect to the general dashboard
-        router.push('/dashboard');
-        router.refresh(); // Refresh to update auth context
+        // Refresh the page to update auth context and then redirect
+        window.location.href = '/dashboard';
       } else {
         setError(data.error?.message || '로그인에 실패했습니다. 이메일과 비밀번호를 확인해주세요.');
       }
