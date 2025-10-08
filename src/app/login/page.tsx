@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
 
 const LoginPage = () => {
   const router = useRouter();
@@ -16,32 +17,28 @@ const LoginPage = () => {
     setError('');
 
     try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
+      // 직접 Supabase 클라이언트를 사용하여 로그인
+      const supabase = createClient();
+      
+      const { error: signInError, data } = await supabase.auth.signInWithPassword({
+        email,
+        password,
       });
 
-      const data = await response.json();
-
-      if (data.success) {
-        // Store the token in localStorage or sessionStorage
-        if (typeof window !== 'undefined' && data.token) {
-          localStorage.setItem('sb-access-token', data.token);
-          // Also try to store in sessionStorage as fallback
-          sessionStorage.setItem('sb-access-token', data.token);
-        }
-        
-        // Refresh the page to update auth context and then redirect
-        window.location.href = '/dashboard';
+      if (signInError) {
+        console.error('Login error:', signInError);
+        setError('Invalid email or password.');
+      } else if (data?.user) {
+        // 로그인 성공 시 대시보드로 이동
+        // 쿠키는 Supabase가 자동으로 처리
+        router.push('/dashboard');
+        router.refresh(); // 새로고침하여 인증 상태 갱신
       } else {
-        setError(data.error?.message || '로그인에 실패했습니다. 이메일과 비밀번호를 확인해주세요.');
+        setError('An unexpected error occurred during login.');
       }
     } catch (err) {
       console.error('Login error:', err);
-      setError('로그인 요청 중 오류가 발생했습니다. 다시 시도해주세요.');
+      setError('An error occurred during login. Please try again.');
     } finally {
       setIsLoading(false);
     }
