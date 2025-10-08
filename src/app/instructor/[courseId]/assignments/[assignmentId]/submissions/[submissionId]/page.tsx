@@ -122,7 +122,7 @@ const SubmissionPage = async ({ params }: SubmissionPageProps) => {
       <div className="container mx-auto py-6 px-4 max-w-4xl">
         <h1 className="text-2xl font-bold mb-6">Submission Details</h1>
         <div className="bg-destructive/10 border border-destructive text-destructive p-4 rounded-md">
-          Submission not found or you don't have permission to view this submission.
+          Submission not found or you do not have permission to view this submission.
         </div>
       </div>
     );
